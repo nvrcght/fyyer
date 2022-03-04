@@ -2,6 +2,7 @@
 # Imports
 #----------------------------------------------------------------------------#
 
+from email.policy import default
 import json
 import dateutil.parser
 import babel
@@ -31,7 +32,7 @@ migrate = Migrate(app, db)
 #----------------------------------------------------------------------------#
 
 class Venue(db.Model):
-    __tablename__ = 'Venue'
+    __tablename__ = 'venue'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -45,7 +46,7 @@ class Venue(db.Model):
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
 class Artist(db.Model):
-    __tablename__ = 'Artist'
+    __tablename__ = 'artist'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -53,9 +54,11 @@ class Artist(db.Model):
     state = db.Column(db.String(120))
     phone = db.Column(db.String(120))
     genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-
+    image_link = db.Column(db.String(500), nullable=True)
+    facebook_link = db.Column(db.String(120), nullable=True)
+    website_link = db.Column(db.String(120), nullable=True)
+    seeking_venue = db.Column(db.Boolean(), nullable=False, default=False)
+    seeking_description = db.Column(db.String, nullable=True)
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
@@ -246,6 +249,7 @@ def delete_venue(venue_id):
 @app.route('/artists')
 def artists():
   # TODO: replace with real data returned from querying the database
+  artists = Artist.query.with_entities(Artist.id, Artist.name).all()
   data=[{
     "id": 4,
     "name": "Guns N Petals",
@@ -255,7 +259,7 @@ def artists():
   }, {
     "id": 6,
     "name": "The Wild Sax Band",
-  }]
+  }] + [{"id": art[0], "name": art[1]} for art in artists]
   return render_template('pages/artists.html', artists=data)
 
 @app.route('/artists/search', methods=['POST'])
@@ -276,7 +280,6 @@ def search_artists():
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
   # shows the artist page with the given artist_id
-  # TODO: replace with real artist data from the artist table, using artist_id
   data1={
     "id": 4,
     "name": "Guns N Petals",
@@ -348,14 +351,21 @@ def show_artist(artist_id):
     "past_shows_count": 0,
     "upcoming_shows_count": 3,
   }
-  data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
+  artist = Artist.query.get(artist_id)
+  if artist:
+    data = artist.__dict__
+    data['genres'] = [data['genres']]
+    print('--------', data)
+  else:
+    # TODO remove this 
+    data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
   return render_template('pages/show_artist.html', artist=data)
 
 #  Update
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
-  form = ArtistForm()
+  
   artist={
     "id": 4,
     "name": "Guns N Petals",
@@ -369,6 +379,8 @@ def edit_artist(artist_id):
     "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
     "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
   }
+  artist = Artist.query.get(artist_id)
+  form = ArtistForm(obj=artist)
   # TODO: populate form with fields from artist with ID <artist_id>
   return render_template('forms/edit_artist.html', form=form, artist=artist)
 
@@ -418,10 +430,41 @@ def create_artist_submission():
   # called upon submitting the new artist listing form
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
+  form = request.form
+  init_args = {arg: form[arg] for arg in ['name', 'city', 'state', 'phone', 'genres']}
+  print('init args', init_args)
+  name = form['name']
+  city = form['city']
+  state = form['state']
+  phone = form['phone']
+  genres = form['genres']
+  facebook_link = form['facebook_link']
+  image_link = form['image_link']
+  website_link = form['website_link']
+  seeking_venue = True if form.get('seeking_venue') else False
+  # TODO seeking venue doesn't get sent
 
+  print('getting data', form)
   # on successful db insert, flash success
-  flash('Artist ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
+  try:
+    # name = db.Column(db.String)
+    # city = db.Column(db.String(120))
+    # state = db.Column(db.String(120))
+    # phone = db.Column(db.String(120))
+    # genres = db.Column(db.String(120))
+    # image_link = db.Column(db.String(500))
+    # facebook_link = db.Column(db.String(120))
+    # website_link = db.Column(db.String(120))
+    # seeking_venue = db.Column(db.Boolean())
+    # seeking_description = db.Column(db.String)
+    artist = Artist(**init_args)
+    db.session.add(artist)
+    db.session.commit()
+    flash('Artist ' + request.form['name'] + ' was successfully listed!')
+  except:
+    db.session.rollback()
+    flash('An error occurred. Artist ' + request.form['name'] + ' could not be listed.')
+    # TODO: on unsuccessful db insert, flash an error instead.
   # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
   return render_template('pages/home.html')
 
