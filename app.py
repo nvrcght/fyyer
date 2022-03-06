@@ -2,6 +2,7 @@
 # Imports
 #----------------------------------------------------------------------------#
 import sys
+from collections import defaultdict
 from email.policy import default
 import json
 import dateutil.parser
@@ -110,8 +111,7 @@ def index():
 
 @app.route('/venues')
 def venues():
-  # TODO: replace with real venues data.
-  #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
+  """
   data=[{
     "city": "San Francisco",
     "state": "CA",
@@ -133,7 +133,45 @@ def venues():
       "num_upcoming_shows": 0,
     }]
   }]
-  return render_template('pages/venues.html', areas=data)
+  """
+  
+  expr = db.case(((Show.start_time > datetime.now(), 'num_upcoming_shows')))
+  subq = db.session.query(Show.venue_id,  expr.label('type'), db.func.count(Show.id)).group_by('type', Show.venue_id)
+
+  # create a dict of upcoming and past shows
+  shows = defaultdict(dict)
+  for venue_id, type_, count in subq:
+    shows[venue_id][type_]=count
+
+  venues = db.session.query(Venue.city, Venue.state, Venue.id, Venue.name).all()
+
+  # concatenate data. is there a better way using sql?
+  venues_data = defaultdict(dict)
+  for city, state, venue_id, venue_name in venues:
+    key = (city, state)
+    if key not in venues_data:
+      venues_data[(city, state)] = {
+        'city': city,
+        'state': state,
+        'venues': [
+          {
+            'id': venue_id,
+            'name': venue_name,
+            'num_upcoming_shows': shows.get(venue_id, {}).get('num_upcoming_shows', 0)
+          }
+          
+        ]
+      }
+    else:
+      venues_data[(city, state)]['venues'].append(
+        {
+          'id': venue_id,
+          'name': venue_name,
+          'num_upcoming_shows': shows.get(venue_id, {}).get('num_upcoming_shows', 0)
+        }
+      )
+      
+  return render_template('pages/venues.html', areas=list(venues_data.values()))
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
@@ -146,16 +184,18 @@ def search_venues():
     "data": []
   }
   if search_term:
-    data = Venue.query.ilike(f'{search_term}')
+    query = Venue.query.filter(Venue.name.ilike(f'%{search_term}%'))
+
+    print('-------', search_term, query.all())
     response = {
-      "count": data.count(),
+      "count": query.count(),
       "data": [
         {
           "id": d.id,
           "name": d.name,
-          "num_upcoming_shows": 0 #TODO
+          "num_upcoming_shows": 5 #Show.query.filter(Show.venue_id==d.id, Show.start_time > datetime.now()).count() TODO where is this used?
         }
-        for d in data
+        for d in query.all()
       ]
     }
 
@@ -259,7 +299,6 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-  # TODO: modify data to be the data object returned from db insertion
 
   try:
     data = dict(request.form)
@@ -267,7 +306,7 @@ def create_venue_submission():
     venue = Venue(**data)
     db.session.add(venue)
     db.session.commit()
-    flash('Venue ' + request.form['name'] + ' was successfully listed!')
+    flash(f'Venue {venue.name} was successfully listed!')
   except:
     print(sys.exc_info())
     flash('An error occurred. Venue ' + data['name'] + ' could not be listed.')
