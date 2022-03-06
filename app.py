@@ -472,7 +472,7 @@ def edit_artist_submission(artist_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
-  form = VenueForm()
+  """
   venue={
     "id": 1,
     "name": "The Musical Hop",
@@ -487,13 +487,24 @@ def edit_venue(venue_id):
     "seeking_description": "We are on the lookout for a local artist to play every two weeks. Please call us.",
     "image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60"
   }
-  # TODO: populate form with values from venue with ID <venue_id>
+  """
+  venue = Venue.query.get(venue_id)
+  form = VenueForm(obj=venue)
+  data = venue.__dict__
+  form.genres.data = data['genres'].split(',')
   return render_template('forms/edit_venue.html', form=form, venue=venue)
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
-  # TODO: take values from the form submitted, and update existing
-  # venue record with ID <venue_id> using the new attributes
+  try:
+    form = VenueForm(request.form)
+    form.genres.data = ','.join(form.genres.data)
+    db.session.execute(db.update(Venue).where(Venue.id==venue_id).values(**form.data))
+    db.session.commit()
+    flash(f'Venue {form.name.data} successfully updated!')
+  except:
+    db.session.rollback()
+    flash(f'An error occurred. Venue {form.name.data} could not be updated.')
   return redirect(url_for('show_venue', venue_id=venue_id))
 
 #  Create Artist
