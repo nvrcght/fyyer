@@ -305,17 +305,16 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-
+  form = VenueForm(request.form)
+  form.genres.data = ','.join(form.genres.data)
   try:
-    data = dict(request.form)
-    data['seeking_talent'] = True if data.get('seeking_talent') else False
-    venue = Venue(**data)
+    venue = Venue(**form.data)
     db.session.add(venue)
     db.session.commit()
     flash(f'Venue {venue.name} was successfully listed!')
   except:
-    print(sys.exc_info())
-    flash('An error occurred. Venue ' + data['name'] + ' could not be listed.')
+    print(sys.exc_info)
+    flash(f'An error occurred. Venue {form.name.data} could not be listed.')
     db.session.rollback()
   finally:
     db.session.close()
