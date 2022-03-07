@@ -364,7 +364,7 @@ def search_artists():
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
-  # shows the artist page with the given artist_id
+  """
   data1={
     "id": 4,
     "name": "Guns N Petals",
@@ -436,14 +436,26 @@ def show_artist(artist_id):
     "past_shows_count": 0,
     "upcoming_shows_count": 3,
   }
+  """
+  def format_start_time(shows_list):
+    res = []
+    for show in shows_list:
+      d = show.__dict__
+      d['start_time'] = str(d['start_time'])
+      d['venue_name'] = show.venue.name
+      d['venue_image_link'] = show.venue.image_link
+      res.append(d)
+    return res
+  
+    
   artist = Artist.query.get(artist_id)
-  if artist:
-    data = artist.__dict__
-    data['genres'] = data['genres'].split(',')
-    # TODO get upcoming shows
-  else:
-    # TODO remove this 
-    data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
+  data = artist.__dict__
+  data['genres'] = data['genres'].split(',')
+  data['upcoming_shows'] = format_start_time(artist.shows.filter(Show.start_time > datetime.now()))
+  data['past_shows'] = format_start_time(artist.shows.filter(Show.start_time < datetime.now()))
+  data['past_shows_count'] = len(data['past_shows'])
+  data['upcoming_shows_count'] = len(data['upcoming_shows'])
+
   return render_template('pages/show_artist.html', artist=data)
 
 #  Update
