@@ -48,7 +48,7 @@ class Venue(db.Model):
     facebook_link = db.Column(db.String(120))
     seeking_talent = db.Column(db.Boolean(), nullable=False, default=False)
     seeking_description = db.Column(db.String(120))
-    shows = db.relationship("Show", backref="venue", lazy=True)
+    shows = db.relationship("Show", backref="venue", lazy='dynamic')
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
@@ -66,7 +66,7 @@ class Artist(db.Model):
     website_link = db.Column(db.String(120), nullable=True)
     seeking_venue = db.Column(db.Boolean(), nullable=False, default=False)
     seeking_description = db.Column(db.String(120))
-    shows = db.relationship("Show", backref="artist", lazy=True)
+    shows = db.relationship("Show", backref="artist", lazy='dynamic')
 
 class Show(db.Model):
   __tablename__ = 'show'
@@ -196,7 +196,6 @@ def search_venues():
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
-  # TODO: replace with real venue data from the venues table, using venue_id
   data1={
     "id": 1,
     "name": "The Musical Hop", #1
@@ -275,10 +274,25 @@ def show_venue(venue_id):
     "upcoming_shows_count": 1,
   }
 
-  # TODO add shows
-  # TODO fix genres
-  data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
-  venue = Venue.query.get(venue_id)
+
+  def format_start_time(shows_list):
+    res = []
+    for show in shows_list:
+      d = show.__dict__
+      d['start_time'] = str(d['start_time'])
+      d['artist_name'] = show.artist.name
+      d['artist_image_link'] = show.artist.image_link
+      res.append(d)
+    return res
+
+  venue_obj = Venue.query.get(venue_id)
+  venue = venue_obj.__dict__
+  venue['genres'] = venue['genres'].split(',')
+  venue['upcoming_shows'] = format_start_time(venue_obj.shows.filter(Show.start_time > datetime.now()))
+  venue['past_shows'] = format_start_time(venue_obj.shows.filter(Show.start_time < datetime.now()))
+  venue['past_shows_count'] = len(venue['past_shows'])
+  venue['upcoming_shows_count'] = len(venue['upcoming_shows'])
+
   return render_template('pages/show_venue.html', venue=venue)
 
 #  Create Venue
@@ -309,6 +323,7 @@ def create_venue_submission():
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
+  print('DELETING', venue_id)
   # TODO: Complete this endpoint for taking a venue_id, and using
   # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
 
