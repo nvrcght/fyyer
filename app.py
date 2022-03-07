@@ -27,7 +27,6 @@ app.config.from_object('config')
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-# TODO: connect to a local postgresql database
 
 #----------------------------------------------------------------------------#
 # Models.
@@ -529,7 +528,6 @@ def create_artist_form():
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
   # called upon submitting the new artist listing form
-  # TODO: modify data to be the data object returned from db insertion
   form = ArtistForm(request.form)
   form.genres.data = ','.join(form.genres.data)
 
@@ -542,8 +540,6 @@ def create_artist_submission():
   except:
     db.session.rollback()
     flash(f'An error occurred. Artist {form.name.data} could not be listed.')
-    # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
   return render_template('pages/home.html')
 
 
@@ -553,7 +549,7 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
   # displays list of shows at /shows
-  # TODO: replace with real venues data.
+  """
   data=[{
     "venue_id": 1,
     "venue_name": "The Musical Hop",
@@ -590,7 +586,16 @@ def shows():
     "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
     "start_time": "2035-04-15T20:00:00.000Z"
   }]
-  return render_template('pages/shows.html', shows=data)
+  """
+  res = []
+  for sh in Show.query.all():
+    d = sh.__dict__
+    d['venue_name'] = sh.venue.name
+    d['artist_name'] = sh.artist.name
+    d['artist_image_link'] = sh.artist.image_link
+    d['start_time'] = str(d['start_time'])
+    res.append(d)
+  return render_template('pages/shows.html', shows=res)
 
 @app.route('/shows/create')
 def create_shows():
@@ -601,7 +606,6 @@ def create_shows():
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
   # called to create new shows in the db, upon submitting new show listing form
-  # TODO: insert form data as a new Show record in the db, instead
   try:
     data = request.form
     show = Show(
@@ -619,9 +623,6 @@ def create_show_submission():
     flash('An error occurred. Show could not be listed.')
   finally:
     db.session.close()
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Show could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
   return render_template('pages/home.html')
 
 @app.errorhandler(404)
