@@ -50,8 +50,6 @@ class Venue(db.Model):
     seeking_description = db.Column(db.String(120))
     shows = db.relationship("Show", backref="venue", lazy='dynamic')
 
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
 class Artist(db.Model):
     __tablename__ = 'artist'
 
@@ -127,40 +125,32 @@ def venues():
     }]
   }]
   """
-  
-  expr = db.case(((Show.start_time > datetime.now(), 'num_upcoming_shows')))
-  subq = db.session.query(Show.venue_id,  expr.label('type'), db.func.count(Show.id)).group_by('type', Show.venue_id)
 
-  # create a dict of upcoming and past shows
-  shows = defaultdict(dict)
-  for venue_id, type_, count in subq:
-    shows[venue_id][type_]=count
-
-  venues = db.session.query(Venue.city, Venue.state, Venue.id, Venue.name).all()
+  venues = Venue.query.all()
 
   # concatenate data. is there a better way using sql?
   venues_data = defaultdict(dict)
-  for city, state, venue_id, venue_name in venues:
-    key = (city, state)
+  for venue in venues:
+    key = (venue.city, venue.state)
     if key not in venues_data:
-      venues_data[(city, state)] = {
-        'city': city,
-        'state': state,
+      venues_data[key] = {
+        'city': venue.city,
+        'state': venue.state,
         'venues': [
           {
-            'id': venue_id,
-            'name': venue_name,
-            'num_upcoming_shows': shows.get(venue_id, {}).get('num_upcoming_shows', 0)
+            'id': venue.id,
+            'name': venue.name,
+            'num_upcoming_shows': venue.shows.filter(Show.start_time > datetime.now()).count()
           }
           
         ]
       }
     else:
-      venues_data[(city, state)]['venues'].append(
+      venues_data[key]['venues'].append(
         {
-          'id': venue_id,
-          'name': venue_name,
-          'num_upcoming_shows': shows.get(venue_id, {}).get('num_upcoming_shows', 0)
+          'id': venue.id,
+          'name': venue.name,
+          'num_upcoming_shows': venue.shows.filter(Show.start_time > datetime.now()).count()
         }
       )
       
@@ -168,9 +158,6 @@ def venues():
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for Hop should return "The Musical Hop".
-  # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
   search_term = request.form.get('search_term', '')
   response= {
     "count": 0, 
@@ -185,7 +172,7 @@ def search_venues():
         {
           "id": d.id,
           "name": d.name,
-          "num_upcoming_shows": 5 #Show.query.filter(Show.venue_id==d.id, Show.start_time > datetime.now()).count() TODO where is this used?
+          "num_upcoming_shows": d.shows.filter(Show.start_time > datetime.now()).count()
         }
         for d in query.all()
       ]
@@ -196,6 +183,7 @@ def search_venues():
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
+  """
   data1={
     "id": 1,
     "name": "The Musical Hop", #1
@@ -273,7 +261,7 @@ def show_venue(venue_id):
     "past_shows_count": 1,
     "upcoming_shows_count": 1,
   }
-
+  """
 
   def format_start_time(shows_list):
     res = []
@@ -339,9 +327,6 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-  # search for "band" should return "The Wild Sax Band".
   search = request.get_json()
   search_term = request.form.get('search_term', '')
   response = {
@@ -356,7 +341,7 @@ def search_artists():
       "data": [{
         "id": art.id,
         "name": art.name,
-        "num_upcoming_shows": 0 #TODO
+        "num_upcoming_shows": art.shows.filter(Show.start_time > datetime.now()).count()
       } for art in data]
     }
   
