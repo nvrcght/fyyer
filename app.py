@@ -93,8 +93,6 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 @app.route('/')
 def index():
-  print('in mthod index')
-  print(request)
   return render_template('pages/home.html')
 
 
