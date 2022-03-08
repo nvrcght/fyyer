@@ -93,6 +93,8 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 @app.route('/')
 def index():
+  print('in mthod index')
+  print(request)
   return render_template('pages/home.html')
 
 
@@ -307,15 +309,17 @@ def create_venue_submission():
     db.session.close()
   return render_template('pages/home.html')
 
-@app.route('/venues/<venue_id>', methods=['DELETE'])
+@app.route('/venues/<venue_id>', methods=['POST'])
 def delete_venue(venue_id):
-  print('DELETING', venue_id)
-  # TODO: Complete this endpoint for taking a venue_id, and using
-  # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
+  try:
+    Venue.query.filter_by(id=venue_id).delete()
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return redirect(url_for('index'))
 
-  # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-  # clicking that button delete it from the db then redirect the user to the homepage
-  return None
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -530,6 +534,10 @@ def create_artist_submission():
   # called upon submitting the new artist listing form
   form = ArtistForm(request.form)
   form.genres.data = ','.join(form.genres.data)
+
+  if Artist.query.filter(Artist.name == form.name.data).all():
+    flash(f'Artist {form.name.data} already exists.')
+    return render_template('pages/home.html')
 
   try:
     artist = Artist(**form.data)
