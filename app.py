@@ -47,6 +47,7 @@ class Venue(db.Model):
     facebook_link = db.Column(db.String(120))
     seeking_talent = db.Column(db.Boolean(), nullable=False, default=False)
     seeking_description = db.Column(db.String(120))
+    created_ts = db.Column(db.String(120), nullable=False, default=datetime.now())
     shows = db.relationship("Show", backref="venue", lazy='dynamic')
 
 class Artist(db.Model):
@@ -63,6 +64,7 @@ class Artist(db.Model):
     website_link = db.Column(db.String(120), nullable=True)
     seeking_venue = db.Column(db.Boolean(), nullable=False, default=False)
     seeking_description = db.Column(db.String(120))
+    created_ts = db.Column(db.String(120), nullable=False, default=datetime.now())
     shows = db.relationship("Show", backref="artist", lazy='dynamic')
 
 class Show(db.Model):
@@ -93,8 +95,10 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 @app.route('/')
 def index():
-  return render_template('pages/home.html')
-
+  
+  venues = Venue.query.order_by(Venue.created_ts.desc()).limit(10).all()
+  artists = Artist.query.order_by(Artist.created_ts.desc()).limit(10).all()
+  return render_template('pages/home.html', venues=venues, artists=artists)
 
 #  Venues
 #  ----------------------------------------------------------------
@@ -294,18 +298,21 @@ def create_venue_form():
 def create_venue_submission():
   form = VenueForm(request.form)
   form.genres.data = ','.join(form.genres.data)
-  try:
-    venue = Venue(**form.data)
-    db.session.add(venue)
-    db.session.commit()
-    flash(f'Venue {venue.name} was successfully listed!')
-  except:
-    print(sys.exc_info)
-    flash(f'An error occurred. Venue {form.name.data} could not be listed.')
-    db.session.rollback()
-  finally:
-    db.session.close()
-  return render_template('pages/home.html')
+  if Venue.query.filter(Venue.name==form.name.data).first():
+    flash(f'Venue {form.name.data} already exists')
+  else:
+    try:
+      venue = Venue(**form.data)
+      db.session.add(venue)
+      db.session.commit()
+      flash(f'Venue {venue.name} was successfully listed!')
+    except:
+      print(sys.exc_info)
+      flash(f'An error occurred. Venue {form.name.data} could not be listed.')
+      db.session.rollback()
+    finally:
+      db.session.close()
+  return redirect(url_for('index'))
 
 @app.route('/venues/<venue_id>', methods=['POST'])
 def delete_venue(venue_id):
@@ -535,7 +542,7 @@ def create_artist_submission():
 
   if Artist.query.filter(Artist.name == form.name.data).all():
     flash(f'Artist {form.name.data} already exists.')
-    return render_template('pages/home.html')
+    redirect(url_for('index'))
 
   try:
     artist = Artist(**form.data)
@@ -546,7 +553,7 @@ def create_artist_submission():
   except:
     db.session.rollback()
     flash(f'An error occurred. Artist {form.name.data} could not be listed.')
-  return render_template('pages/home.html')
+  return redirect(url_for('index'))
 
 
 #  Shows
